@@ -83,12 +83,45 @@ backend/**/*.pyc
 backend/uploads/
 backend/**/uploads/
 
+# Website/Frontend (Next.js) - include source code, ignore generated files
+website/node_modules/
+website/.next/
+website/out/
+website/build/
+website/dist/
+website/.env.local
+website/.env.development.local
+website/.env.test.local
+website/.env.production.local
+website/.vercel/
+website/.turbo/
+website/coverage/
+website/tsconfig.tsbuildinfo
+website/.cache/
+website/npm-debug.log*
+website/yarn-debug.log*
+website/yarn-error.log*
+website/.pnpm-debug.log*
+
+# Playwright test results
+website/test-results/
+website/playwright-report/
+website/blob-report/
+website/playwright/
+
+# Package manager lock files (optional - you may want to keep these)
+# website/package-lock.json
+# website/yarn.lock
+# website/pnpm-lock.yaml
+
 # Logs
 *.log
 
 # IDE
 .vscode/
 .idea/
+.cursor/
+.cusor/
 *.swp
 *.swo
 *~
