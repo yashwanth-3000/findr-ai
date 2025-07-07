@@ -164,22 +164,22 @@ export default function NewJobPage() {
         experience_level: formData.experience_level,
         skills_required: formData.skills_required, // Already an array
         benefits: formData.benefits ? [formData.benefits] : null, // Convert string to array
-        status: 'active'
-        // Let database generate public_link_id, created_at, and updated_at automatically
+        status: 'draft' // Set to draft initially, will be changed to active when link is created
       }
 
-      const { error: insertError } = await supabase
-        .from('jobs')
-        .insert([jobData])
-
-      if (insertError) {
-        console.error('Error creating job:', insertError)
-        setError('Failed to create job posting. Please try again.')
-        return
+      // Store job data in sessionStorage to pass to create-shareable-link page
+      const jobDataForLink = {
+        ...jobData,
+        company_name: company.company_name,
+        salary_range: formData.salary_range,
+        employment_type: formData.employment_type,
+        company_description: formData.company_description
       }
 
-      // Redirect to jobs list with success message
-      router.push('/company/jobs?created=success')
+      sessionStorage.setItem('pendingJobData', JSON.stringify(jobDataForLink))
+      
+      // Redirect to create-shareable-link page
+      router.push('/create-shareable-link?from=job-post')
     } catch (err) {
       console.error('Unexpected error:', err)
       setError('An unexpected error occurred. Please try again.')
@@ -255,8 +255,13 @@ export default function NewJobPage() {
             <div className="text-center">
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Post New Job</h1>
             <p className="text-muted-foreground dark:text-gray-400 mt-2">
-              Create a new job posting and get AI-powered candidate screening
+              Step 1 of 2: Fill in job details, then create a shareable application link
             </p>
+            <div className="mt-3 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+              <p className="text-sm text-red-700 dark:text-red-300">
+                📋 <strong>New Workflow:</strong> After entering job details, you'll configure application requirements and create a shareable link to publish your job.
+              </p>
+            </div>
             
             {/* Quick Debug Info */}
             <div className="mt-4 p-2 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded text-xs">
@@ -470,7 +475,7 @@ export default function NewJobPage() {
                     disabled={isSubmitting}
                     className="px-8 py-3"
                   >
-                    {isSubmitting ? 'Creating Job...' : 'Post Job'}
+                                          {isSubmitting ? 'Continuing...' : 'Continue to Create Application Link'}
                   </Button>
                   <Button
                     type="button"
