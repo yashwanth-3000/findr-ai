@@ -15,7 +15,7 @@ import { PageContainer } from '@/components/layout/page-container'
 import { formatDistance } from 'date-fns'
 
 export default function ManageJobsPage() {
-  const { user, supabase } = useAuth()
+  const { user, company, supabase } = useAuth()
   const [jobs, setJobs] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('active')
@@ -23,29 +23,31 @@ export default function ManageJobsPage() {
   // Fetch jobs from the database
   useEffect(() => {
     const fetchJobs = async () => {
-      if (!user) return
+      if (!user || !company) return
       
       try {
         setLoading(true)
+        console.log('🔍 [Jobs] Fetching jobs for company ID:', company.id)
         
         const { data, error } = await supabase
           .from('jobs')
           .select('*')
-          .eq('company_id', user.id)
+          .eq('company_id', company.id)
           .order('created_at', { ascending: false })
         
         if (error) throw error
         
+        console.log('✅ [Jobs] Found jobs:', data)
         setJobs(data || [])
       } catch (error) {
-        console.error('Error fetching jobs:', error)
+        console.error('❌ [Jobs] Error fetching jobs:', error)
       } finally {
         setLoading(false)
       }
     }
     
     fetchJobs()
-  }, [user, supabase])
+  }, [user, company, supabase])
   
   // Filter jobs by status
   const filteredJobs = jobs.filter(job => job.status === activeTab)
@@ -78,10 +80,17 @@ export default function ManageJobsPage() {
             </Button>
           </div>
           
-          {loading ? (
+          {loading || !user || !company ? (
             <div className="flex flex-col justify-center items-center p-12 gap-4">
               <LuLoader className="h-8 w-8 animate-spin text-primary" />
-              <p className="text-muted-foreground text-sm">Loading... If not loaded in 3 seconds, please refresh the page</p>
+              <p className="text-muted-foreground text-sm">
+                {!user ? 'Waiting for user login...' : 
+                 !company ? 'Loading company profile...' : 
+                 'Loading jobs...'}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Debug: User: {user ? '✅' : '❌'} | Company: {company ? '✅' : '❌'}
+              </p>
             </div>
           ) : jobs.length === 0 ? (
             <Card className="p-8 text-center">

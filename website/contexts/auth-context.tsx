@@ -66,27 +66,112 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   // Function to get the company profile from Supabase
   const fetchCompanyProfile = async (userId: string) => {
     try {
-      console.log('Fetching company profile for user ID:', userId);
+      console.log('🔍 [fetchCompanyProfile] STEP 1: Starting fetch for user ID:', userId);
+      console.log('🔍 [fetchCompanyProfile] STEP 2: Calling Supabase query...');
       
-      const { data: companyProfile, error } = await supabase
-        .from('companies')
-        .select('*')
-        .eq('user_id', userId)
-        .single();
-      
-      if (error) {
-        if (error.code === 'PGRST116') { // No rows returned
-          console.log('No company profile found for user');
+      let companyProfiles, error;
+      try {
+        // Query with reasonable timeout
+        const queryPromise = supabase
+          .from('companies')
+          .select('*')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false })
+          .limit(1);
+        
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('Query timeout after 15 seconds')), 15000);
+        });
+        
+        console.log('🔍 [fetchCompanyProfile] STEP 2.5: Waiting for query with 15s timeout...');
+        const result = await Promise.race([queryPromise, timeoutPromise]);
+        companyProfiles = (result as any).data;
+        error = (result as any).error;
+      } catch (timeoutError) {
+        console.error('🔍 [fetchCompanyProfile] Query timed out:', timeoutError);
+        // Don't return null immediately, try a fallback approach
+        console.log('🔍 [fetchCompanyProfile] Attempting fallback query...');
+        try {
+          const fallbackResult = await supabase
+            .from('companies')
+            .select('*')
+            .eq('user_id', userId)
+            .limit(1)
+            .maybeSingle();
+          
+          if (fallbackResult.error) {
+            console.error('❌ [fetchCompanyProfile] Fallback query failed:', fallbackResult.error);
+            return null;
+          }
+          
+          companyProfiles = fallbackResult.data ? [fallbackResult.data] : [];
+          error = null;
+        } catch (fallbackError) {
+          console.error('❌ [fetchCompanyProfile] Fallback query exception:', fallbackError);
           return null;
         }
+      }
+      
+      console.log('🔍 [fetchCompanyProfile] STEP 3: Query completed. Data:', companyProfiles, 'Error:', error);
+      
+      if (error) {
+        console.log('❌ [fetchCompanyProfile] Error details:', error.code, error.message, error);
         console.error('Error fetching company profile:', error);
         return null;
       }
       
-      console.log('Found company profile:', companyProfile);
-      return companyProfile as Company;
+      if (!companyProfiles || companyProfiles.length === 0) {
+        console.log('🔍 [fetchCompanyProfile] STEP 4: No company profile found, creating one automatically...');
+        
+        // Get current user data to create automatic profile
+        const { data: { user: currentUser } } = await supabase.auth.getUser();
+        
+        if (currentUser) {
+          // Extract name from user metadata (Google OAuth provides this)
+          const userName = currentUser.user_metadata?.full_name || 
+                         currentUser.user_metadata?.name || 
+                         currentUser.email?.split('@')[0] || 
+                         'New Company';
+          
+          const companyData = {
+            user_id: userId,
+            company_name: `${userName}'s Company`,
+            company_email: currentUser.email || '',
+            company_website: null,
+            company_description: null,
+            company_logo_url: null,
+            company_size: null,
+            industry: null,
+            location: null,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          };
+          
+          console.log('🔍 [fetchCompanyProfile] STEP 5: Creating automatic company profile with data:', companyData);
+          
+          const { data: newProfile, error: createError } = await supabase
+            .from('companies')
+            .insert(companyData)
+            .select('*')
+            .single();
+          
+          if (createError) {
+            console.error('❌ [fetchCompanyProfile] Failed to create automatic company profile:', createError);
+            return null;
+          }
+          
+          console.log('✅ [fetchCompanyProfile] STEP 6: Successfully created automatic company profile:', newProfile);
+          return newProfile as Company;
+        }
+        
+        console.log('❌ [fetchCompanyProfile] No current user found for auto-creation');
+        return null;
+      }
+      
+      console.log('✅ [fetchCompanyProfile] STEP 4: Found existing company profile:', companyProfiles[0]);
+      return companyProfiles[0] as Company;
     } catch (err) {
-      console.error('Exception fetching company profile:', err);
+      console.error('❌ [fetchCompanyProfile] Exception:', err);
       return null;
     }
   };
@@ -147,6 +232,15 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     setIsInitialized(false);
     initializeRef.current = false;
     companyFetchRef.current = false;
+    
+    // Also clear localStorage when resetting state
+    if (typeof window !== 'undefined') {
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('sb-') || key.includes('supabase') || key.includes('auth')) {
+          localStorage.removeItem(key);
+        }
+      });
+    }
   };
 
   // Refresh the current session
@@ -171,9 +265,14 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         
         // Fetch company profile after session refresh
         if (data.user && !companyFetchRef.current) {
+          console.log('🔄 [refreshSession] About to fetch company profile for user:', data.user.id);
           companyFetchRef.current = true;
           const companyProfile = await fetchCompanyProfile(data.user.id);
+          console.log('🔄 [refreshSession] Company profile result:', companyProfile);
+          console.log('🔄 [refreshSession] companyFetchRef.current:', companyFetchRef.current);
+          console.log('📊 [setState] Setting company state to:', companyProfile);
           setCompany(companyProfile);
+          console.log('🔄 [refreshSession] Company state updated');
           companyFetchRef.current = false;
         }
       }
@@ -188,28 +287,27 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   // Sign out function
   const signOut = async (): Promise<boolean> => {
-    try {
-      console.log('Signing out user');
-      setLoading(true);
-      
-      const { error } = await supabase.auth.signOut();
-      
-      if (error) {
-        console.error('Sign out failed:', error);
-        setError('Failed to sign out');
-        return false;
-      }
-      
-      resetAuthState();
-      router.push('/');
-      return true;
-    } catch (err) {
-      console.error('Exception during sign out:', err);
-      setError('Sign out failed');
-      return false;
-    } finally {
-      setLoading(false);
+    console.log('Signing out user');
+    
+    // Clear state immediately
+    setUser(null);
+    setCompany(null);
+    setSession(null);
+    setError(null);
+    
+    // Clear storage immediately
+    if (typeof window !== 'undefined') {
+      localStorage.clear();
+      sessionStorage.clear();
     }
+    
+    // Don't wait for Supabase - just redirect
+    window.location.href = '/';
+    
+    // Fire and forget the Supabase signout
+    supabase.auth.signOut().catch(console.error);
+    
+    return true;
   };
 
   // Sign in with Google
@@ -261,9 +359,14 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         
         // Fetch company profile for the user
         if (session.user && !companyFetchRef.current) {
+          console.log('🚀 [initializeAuth] About to fetch company profile for user:', session.user.id);
           companyFetchRef.current = true;
           const companyProfile = await fetchCompanyProfile(session.user.id);
+          console.log('🚀 [initializeAuth] Company profile result:', companyProfile);
+          console.log('🚀 [initializeAuth] companyFetchRef.current:', companyFetchRef.current);
+          console.log('📊 [setState] Setting company state to:', companyProfile);
           setCompany(companyProfile);
+          console.log('🚀 [initializeAuth] Company state updated');
           companyFetchRef.current = false;
         }
       } else {
@@ -298,9 +401,14 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             
             // Fetch company profile for newly signed in user
             if (session.user && !companyFetchRef.current) {
+              console.log('👤 [authListener] About to fetch company profile for user:', session.user.id);
               companyFetchRef.current = true;
               const companyProfile = await fetchCompanyProfile(session.user.id);
+              console.log('👤 [authListener] Company profile result:', companyProfile);
+              console.log('👤 [authListener] companyFetchRef.current:', companyFetchRef.current);
+              console.log('📊 [setState] Setting company state to:', companyProfile);
               setCompany(companyProfile);
+              console.log('👤 [authListener] Company state updated');
               companyFetchRef.current = false;
             }
           } else if (event === 'SIGNED_OUT') {

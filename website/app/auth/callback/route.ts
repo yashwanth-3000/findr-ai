@@ -4,37 +4,73 @@ import { createServerClient } from '@/lib/supabase'
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url)
   const code = requestUrl.searchParams.get('code')
+  const error = requestUrl.searchParams.get('error')
+  const errorDescription = requestUrl.searchParams.get('error_description')
+  const state = requestUrl.searchParams.get('state')
   const origin = requestUrl.origin
 
-  // Default redirect to company dashboard for our simplified company-only app
-  const next = requestUrl.searchParams.get('next') || '/company/dashboard'
+  // Default redirect to home page after successful login
+  const next = requestUrl.searchParams.get('next') || '/'
 
   console.log('Auth callback received with:', {
     code: code ? 'present' : 'missing',
-    error: requestUrl.searchParams.get('error') || 'none',
+    error: error || 'none',
+    errorDescription: errorDescription || 'none',
+    state: state || 'none',
     url: requestUrl.toString(),
     hasHash: requestUrl.hash ? true : false,
-    searchParams: Object.fromEntries(requestUrl.searchParams)
+    searchParams: Object.fromEntries(requestUrl.searchParams),
+    headers: {
+      userAgent: request.headers.get('user-agent'),
+      referer: request.headers.get('referer'),
+      origin: request.headers.get('origin')
+    }
   })
+
+  // Check for OAuth errors first
+  if (error) {
+    console.error('OAuth error received:', {
+      error,
+      errorDescription,
+      fullUrl: requestUrl.toString()
+    })
+    
+    // Redirect to sign-in with error message
+    return NextResponse.redirect(`${origin}/auth/sign-in?error=${encodeURIComponent(error)}`)
+  }
 
   if (code) {
     const supabase = createServerClient()
 
-    const { error } = await supabase.auth.exchangeCodeForSession(code)
-    if (!error) {
-      const forwardedHost = request.headers.get('x-forwarded-host')
-      const isLocalEnv = process.env.NODE_ENV === 'development'
+    try {
+      console.log('Attempting to exchange code for session...')
+      const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
       
-      if (isLocalEnv) {
-        // In development, always redirect to localhost
-        return NextResponse.redirect(`${origin}${next}`)
-      } else if (forwardedHost) {
-        // In production, use the forwarded host
-        return NextResponse.redirect(`https://${forwardedHost}${next}`)
-      } else {
-        // Fallback to origin
-        return NextResponse.redirect(`${origin}${next}`)
+      if (exchangeError) {
+        console.error('Code exchange failed:', exchangeError)
+        return NextResponse.redirect(`${origin}/auth/sign-in?error=${encodeURIComponent('Code exchange failed')}`)
       }
+      
+      if (data.session) {
+        console.log('Session created successfully for user:', data.user?.email)
+        
+        const forwardedHost = request.headers.get('x-forwarded-host')
+        const isLocalEnv = process.env.NODE_ENV === 'development'
+        
+        if (isLocalEnv) {
+          // In development, always redirect to localhost
+          return NextResponse.redirect(`${origin}${next}`)
+        } else if (forwardedHost) {
+          // In production, use the forwarded host
+          return NextResponse.redirect(`https://${forwardedHost}${next}`)
+        } else {
+          // Fallback to origin
+          return NextResponse.redirect(`${origin}${next}`)
+        }
+      }
+    } catch (err) {
+      console.error('Exception during code exchange:', err)
+      return NextResponse.redirect(`${origin}/auth/sign-in?error=${encodeURIComponent('Authentication failed')}`)
     }
   }
 
@@ -65,7 +101,7 @@ export async function POST(request: NextRequest) {
   const requestUrl = new URL(request.url)
   const formData = await request.formData()
   const code = String(formData.get('code') ?? '')
-  const next = String(formData.get('next') ?? '/company/dashboard')
+  const next = String(formData.get('next') ?? '/')
 
   if (code) {
     const supabase = createServerClient()
@@ -76,6 +112,6 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // Return to the origin URL in case of an error
-  return createAuthRedirectResponse('/company/dashboard')
+  // Return to the home page in case of an error
+  return createAuthRedirectResponse('/')
 } 

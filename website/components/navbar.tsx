@@ -16,8 +16,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { LuMenu, LuX, LuLogOut, LuLoader, LuUser, LuBuilding } from 'react-icons/lu'
-import { forceSignOut, debugAuthState, serverSignOut } from '@/lib/auth-utils'
+import { LuMenu, LuX, LuLogOut, LuUser, LuBuilding } from 'react-icons/lu'
+
 import { Container } from '@/components/layout/container'
 
 export function Navbar() {
@@ -27,7 +27,7 @@ export function Navbar() {
   const pathname = usePathname()
   const { user, signOut } = useAuth()
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
-  const [isSubmitting, setIsSubmitting] = useState(false);
+
 
   // Handle scroll effect
   useEffect(() => {
@@ -78,25 +78,8 @@ export function Navbar() {
   }
   
   // Handle sign out with fallback options
-  const handleSignOut = (e: React.MouseEvent) => {
-    // If shift key is pressed, show auth debug info
-    if (e.shiftKey) {
-      e.preventDefault();
-      debugAuthState();
-      return;
-    }
-    
-    // If ctrl/cmd key is pressed, use force sign out
-    if (e.ctrlKey || e.metaKey) {
-      e.preventDefault();
-      forceSignOut();
-      return;
-    }
-    
-    // Regular sign out - use the server endpoint
-    setIsSubmitting(true);
-    console.log("Starting sign out process using server endpoint");
-    serverSignOut();
+  const handleSignOut = () => {
+    signOut();
   };
 
   // Navigation links for authenticated companies
@@ -110,17 +93,17 @@ export function Navbar() {
       className={cn(
         "fixed top-0 w-full z-50 transition-all duration-500 border-b",
         scrolled
-          ? "bg-background/80 backdrop-blur-lg border-border/20 shadow-sm h-16"
-          : "bg-background/30 backdrop-blur-sm border-transparent h-20"
+          ? "bg-background/95 dark:bg-black/95 backdrop-blur-lg border-border/40 dark:border-gray-800/60 shadow-sm h-16"
+          : "bg-background/70 dark:bg-black/70 backdrop-blur-md border-transparent h-20"
       )}
     >
       <Container className="flex items-center justify-between h-full">
         {/* Logo and site name */}
         <Link href="/" className="flex items-center space-x-2 group">
-          <div className="flex items-center justify-center w-8 h-8 overflow-hidden rounded-lg bg-primary text-primary-foreground font-bold text-xl group-hover:opacity-80 transition-all duration-300">
+          <div className="flex items-center justify-center w-8 h-8 overflow-hidden rounded-lg bg-primary dark:bg-red-600 text-primary-foreground dark:text-white font-bold text-xl group-hover:opacity-80 transition-all duration-300 shadow-sm">
             AI
           </div>
-          <span className="font-bold text-lg group-hover:text-primary transition-colors duration-300">
+          <span className="font-bold text-lg text-foreground dark:text-white group-hover:text-primary dark:group-hover:text-red-500 transition-colors duration-300">
             findr-ai
           </span>
         </Link>
@@ -136,8 +119,8 @@ export function Navbar() {
                 className={cn(
                   "group relative px-3 py-2 text-sm font-medium transition-colors rounded-lg",
                   pathname === item.path
-                    ? "bg-primary/10 text-primary"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                    ? "bg-primary/10 dark:bg-red-600/20 text-primary dark:text-red-400"
+                    : "text-muted-foreground dark:text-gray-300 hover:text-foreground dark:hover:text-white hover:bg-muted/50 dark:hover:bg-gray-800/50"
                 )}
                 style={{ animationDelay: `${index * 50}ms` }}
               >
@@ -159,7 +142,7 @@ export function Navbar() {
               size="icon" 
               onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
               aria-label="Toggle theme"
-              className="relative h-9 w-9 rounded-full transition-colors duration-300 hover:bg-background hover:text-primary"
+              className="relative h-9 w-9 rounded-full transition-colors duration-300 hover:bg-muted/50 dark:hover:bg-gray-800/50 hover:text-primary"
             >
               <span className="sr-only">Toggle theme</span>
               <div className="flex items-center justify-center w-full h-full">
@@ -224,13 +207,8 @@ export function Navbar() {
                 <DropdownMenuItem
                   className="cursor-pointer text-red-600 focus:text-red-600"
                   onClick={handleSignOut}
-                  disabled={isSubmitting}
                 >
-                  {isSubmitting ? (
-                    <LuLoader className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <LuLogOut className="mr-2 h-4 w-4" />
-                  )}
+                  <LuLogOut className="mr-2 h-4 w-4" />
                   Sign Out
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -258,7 +236,7 @@ export function Navbar() {
 
       {/* Mobile menu */}
       {isMobileMenuOpen && (
-        <div className="md:hidden absolute top-full left-0 w-full bg-background border-b shadow-lg">
+        <div className="md:hidden absolute top-full left-0 w-full bg-background/95 dark:bg-black/95 backdrop-blur-lg border-b border-border/40 dark:border-gray-800/60 shadow-lg">
           <div className="container py-4 space-y-3">
             {navLinks.map((item) => {
               const Icon = item.icon;
@@ -269,8 +247,8 @@ export function Navbar() {
                   className={cn(
                     "flex items-center gap-3 px-3 py-2 text-sm font-medium transition-colors rounded-lg",
                     pathname === item.path
-                      ? "bg-primary/10 text-primary"
-                      : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                      ? "bg-primary/10 dark:bg-red-600/20 text-primary dark:text-red-400"
+                      : "text-muted-foreground dark:text-gray-300 hover:text-foreground dark:hover:text-white hover:bg-muted/50 dark:hover:bg-gray-800/50"
                   )}
                   onClick={() => setIsMobileMenuOpen(false)}
                 >

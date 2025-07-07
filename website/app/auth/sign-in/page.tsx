@@ -11,13 +11,23 @@ import { Loader2 } from 'lucide-react'
 export default function SignInPage() {
   const { signInWithGoogle, loading, error, user } = useAuth()
   const [isLoading, setIsLoading] = useState(false)
+  const [urlError, setUrlError] = useState('')
   const router = useRouter()
+
+  // Check for error in URL params
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search)
+    const errorParam = urlParams.get('error')
+    if (errorParam) {
+      setUrlError(decodeURIComponent(errorParam))
+    }
+  }, [])
   
-  // Redirect authenticated users to company dashboard
+  // Redirect authenticated users to home page
   useEffect(() => {
     if (user) {
-      console.log('User authenticated, redirecting to company dashboard')
-      router.push('/company/dashboard')
+      console.log('User authenticated, redirecting to home page')
+      router.push('/')
     }
   }, [user, router])
 
@@ -64,9 +74,9 @@ export default function SignInPage() {
             Continue with Google
           </Button>
           
-          {error && (
+          {(error || urlError) && (
             <div className="text-sm text-red-600 text-center">
-              {error}
+              {error || urlError}
             </div>
           )}
           

@@ -66,9 +66,9 @@ export default function TokenHandler() {
               // Clean up URL hash
               window.history.replaceState({}, document.title, window.location.pathname)
               
-              // Redirect to company dashboard
+              // Redirect to home page
               setTimeout(() => {
-                router.push('/company/dashboard')
+                router.push('/')
               }, 1000)
               return
             }
@@ -84,7 +84,7 @@ export default function TokenHandler() {
           setMessage('Session found! Redirecting...')
           
           setTimeout(() => {
-            router.push('/company/dashboard')
+            router.push('/')
           }, 1000)
         } else {
           console.log('No session found, redirecting to sign-in')

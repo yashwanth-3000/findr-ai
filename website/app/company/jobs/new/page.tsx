@@ -10,7 +10,8 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
-import { ArrowLeft, Plus, X, Building, MapPin, DollarSign, Clock } from 'lucide-react'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { ArrowLeft, Plus, X, Building, MapPin, DollarSign, Clock, Zap } from 'lucide-react'
 import Link from 'next/link'
 import { Navbar } from '@/components/navbar'
 
@@ -27,6 +28,46 @@ const JobFormData = {
   company_description: ''
 }
 
+// Sample company data for testing
+const sampleCompanies = [
+  {
+    id: 'company-a',
+    name: 'TechFlow Solutions',
+    description: 'A cutting-edge fintech company revolutionizing digital payments',
+    hiringFor: 'Full-stack developers and product designers',
+    jobData: {
+      title: 'Senior Full-Stack Developer',
+      description: 'We are looking for a passionate Senior Full-Stack Developer to join our growing team. You will be responsible for developing and maintaining our core platform that processes millions of transactions daily. You\'ll work with cutting-edge technologies and have the opportunity to shape the future of digital payments.',
+      requirements: 'Bachelor\'s degree in Computer Science or related field\n5+ years of experience in full-stack development\nProficiency in React, Node.js, and TypeScript\nExperience with PostgreSQL and Redis\nKnowledge of payment processing systems\nStrong problem-solving skills and attention to detail\nExperience with cloud platforms (AWS preferred)',
+      location: 'San Francisco, CA',
+      employment_type: 'full-time',
+      salary_range: '$140,000 - $180,000',
+      experience_level: 'senior',
+      skills_required: ['React', 'Node.js', 'TypeScript', 'PostgreSQL', 'AWS', 'Payment Systems'],
+      benefits: 'Competitive salary and equity package\nComprehensive health, dental, and vision insurance\nFlexible PTO and remote work options\nProfessional development budget\n401(k) with company matching\nDaily catered meals and snacks\nState-of-the-art office in downtown SF',
+      company_description: 'TechFlow Solutions is at the forefront of financial technology, providing secure and efficient payment processing solutions to businesses worldwide. Our mission is to make digital transactions seamless, secure, and accessible to everyone. We\'re a fast-growing company with a collaborative culture that values innovation, transparency, and work-life balance.'
+    }
+  },
+  {
+    id: 'company-b',
+    name: 'DataVision Analytics',
+    description: 'AI-powered data analytics platform for enterprise clients',
+    hiringFor: 'Junior Gen AI developers and AI enthusiasts',
+    jobData: {
+      title: 'Junior Gen AI Developer',
+      description: 'Join our innovative AI team to help build the next generation of generative AI solutions for enterprise clients. As a Junior Gen AI Developer, you\'ll work alongside senior engineers to develop, fine-tune, and deploy large language models and generative AI applications. This is an excellent opportunity to learn cutting-edge AI technologies including prompt engineering, model fine-tuning, and AI agent development while contributing to real-world enterprise solutions.',
+      requirements: 'Bachelor\'s degree in Computer Science, AI, or related field\n0-2 years of experience in software development or AI\nBasic knowledge of Python and machine learning concepts\nFamiliarity with AI frameworks (OpenAI API, Hugging Face, LangChain)\nUnderstanding of large language models (LLMs) and generative AI\nStrong problem-solving skills and eagerness to learn\nExperience with Git and basic software development practices\nPassion for AI and emerging technologies',
+      location: 'Remote',
+      employment_type: 'full-time',
+      salary_range: '$75,000 - $95,000',
+      experience_level: 'entry',
+      skills_required: ['Python', 'OpenAI API', 'LangChain', 'Prompt Engineering', 'Hugging Face', 'Gen AI'],
+      benefits: 'Competitive entry-level salary with growth potential\nStock options and equity participation\nComprehensive health and wellness benefits\nFlexible remote work with optional office days\nMentorship program with senior AI engineers\nProfessional development budget for AI courses\nLatest MacBook Pro and home office setup\nUnlimited PTO policy\nQuarterly team building events',
+      company_description: 'DataVision Analytics empowers businesses to unlock the full potential of their data through advanced AI and machine learning solutions. We specialize in generative AI applications that help Fortune 500 companies automate workflows, enhance customer experiences, and drive innovation. Our team is passionate about democratizing AI technology and fostering the next generation of AI talent.'
+    }
+  }
+]
+
 export default function NewJobPage() {
   const router = useRouter()
   const { user, company, supabase } = useAuth()
@@ -34,6 +75,18 @@ export default function NewJobPage() {
   const [skillInput, setSkillInput] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [isTestDialogOpen, setIsTestDialogOpen] = useState(false)
+
+  // Debug auth state
+  console.log('🔍 Auth Debug:', {
+    user: !!user,
+    userEmail: user?.email,
+    company: !!company,
+    companyName: company?.company_name,
+    companyId: company?.id
+  })
+
+
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({
@@ -66,10 +119,20 @@ export default function NewJobPage() {
     }
   }
 
+  const handleTestCompanySelect = (companyData: typeof sampleCompanies[0]) => {
+    setFormData(companyData.jobData)
+    setIsTestDialogOpen(false)
+  }
+
+
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
+    console.log('🚀 Form Submit:', { user: !!user, company: !!company, userEmail: user?.email, companyName: company?.company_name })
+    
     if (!user || !company) {
+      console.log('❌ Auth check failed:', { user: !!user, company: !!company })
       setError('You must be logged in with a company account to post jobs')
       return
     }
@@ -78,25 +141,31 @@ export default function NewJobPage() {
     setError(null)
 
     try {
-      // Generate a unique public link ID
-      const publicLinkId = `job_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+      // Parse salary range if provided
+      let salary_min = null;
+      let salary_max = null;
+      if (formData.salary_range) {
+        const salaryMatch = formData.salary_range.match(/\$?(\d+(?:,\d+)*)\s*[-–]\s*\$?(\d+(?:,\d+)*)/);
+        if (salaryMatch) {
+          salary_min = parseInt(salaryMatch[1].replace(/,/g, ''));
+          salary_max = parseInt(salaryMatch[2].replace(/,/g, ''));
+        }
+      }
 
       const jobData = {
         company_id: company.id,
         title: formData.title,
         description: formData.description,
-        requirements: formData.requirements,
+        requirements: formData.requirements ? [formData.requirements] : null, // Convert string to array
         location: formData.location,
-        employment_type: formData.employment_type,
-        salary_range: formData.salary_range || null,
+        job_type: formData.employment_type, // Map employment_type to job_type
+        salary_min: salary_min,
+        salary_max: salary_max,
         experience_level: formData.experience_level,
-        skills_required: formData.skills_required,
-        benefits: formData.benefits || null,
-        company_description: formData.company_description || null,
-        public_link_id: publicLinkId,
-        status: 'active',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+        skills_required: formData.skills_required, // Already an array
+        benefits: formData.benefits ? [formData.benefits] : null, // Convert string to array
+        status: 'active'
+        // Let database generate public_link_id, created_at, and updated_at automatically
       }
 
       const { error: insertError } = await supabase
@@ -125,19 +194,77 @@ export default function NewJobPage() {
       <div className="pt-20 pb-12">
         <div className="container max-w-4xl px-6 mx-auto">
           {/* Header */}
-          <div className="mb-8 text-center">
-            <div className="mb-4">
+          <div className="mb-8">
+            <div className="flex justify-between items-start mb-6">
               <Button variant="ghost" asChild>
                 <Link href="/company/jobs">
                   <ArrowLeft className="mr-2 h-4 w-4" />
                   Back to Jobs
                 </Link>
               </Button>
+              
+              {/* Testing Feature Button - Top Right */}
+              <Dialog open={isTestDialogOpen} onOpenChange={setIsTestDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" size="sm" className="bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/30">
+                    <Zap className="mr-2 h-3 w-3" />
+                    Testing Findr-AI?
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-2xl">
+                  <DialogHeader>
+                    <DialogTitle>Test Finder-AI with Sample Companies</DialogTitle>
+                    <DialogDescription>
+                      Choose a sample company to automatically fill the job posting form with realistic data.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4 mt-4">
+                    {sampleCompanies.map((company) => (
+                      <Card 
+                        key={company.id} 
+                        className="cursor-pointer transition-all duration-300 ease-in-out border-2 hover:border-red-300 dark:hover:border-red-700 hover:shadow-xl hover:shadow-red-100/20 dark:hover:shadow-red-900/20 hover:scale-[1.02] hover:-translate-y-1 group"
+                        onClick={() => handleTestCompanySelect(company)}
+                      >
+                        <CardHeader className="pb-3">
+                          <CardTitle className="text-lg flex items-center gap-2 group-hover:text-red-600 dark:group-hover:text-red-400 transition-colors duration-300">
+                            <Building className="h-5 w-5 group-hover:scale-110 transition-transform duration-300" />
+                            {company.name}
+                          </CardTitle>
+                          <CardDescription className="group-hover:text-gray-700 dark:group-hover:text-gray-300 transition-colors duration-300">
+                            {company.description}
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent className="pt-0">
+                          <div className="bg-gray-50 dark:bg-gray-900 p-3 rounded-md group-hover:bg-red-50/50 dark:group-hover:bg-red-900/10 transition-colors duration-300">
+                            <p className="text-sm font-medium text-gray-700 dark:text-gray-300 group-hover:text-red-700 dark:group-hover:text-red-300 transition-colors duration-300">Currently hiring for:</p>
+                            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 group-hover:text-gray-800 dark:group-hover:text-gray-200 transition-colors duration-300">{company.hiringFor}</p>
+                          </div>
+                          <div className="mt-3">
+                            <Badge variant="secondary" className="text-xs bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 group-hover:bg-red-100 dark:group-hover:bg-red-900/30 group-hover:scale-105 transition-all duration-300">
+                              {company.jobData.title}
+                            </Badge>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </DialogContent>
+              </Dialog>
             </div>
+            
+            <div className="text-center">
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Post New Job</h1>
             <p className="text-muted-foreground dark:text-gray-400 mt-2">
               Create a new job posting and get AI-powered candidate screening
             </p>
+            
+            {/* Quick Debug Info */}
+            <div className="mt-4 p-2 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded text-xs">
+              <span className="font-medium">Auth:</span> User: {user ? '✅' : '❌'} | Company: {company ? '✅' : '❌'} 
+              {user && <span className="ml-2">({user.email})</span>}
+              {company && <span className="ml-2">({company.company_name})</span>}
+            </div>
+            </div>
           </div>
 
           {/* Form */}
@@ -292,12 +419,12 @@ export default function NewJobPage() {
                   {formData.skills_required.length > 0 && (
                     <div className="flex flex-wrap gap-2 mt-3">
                       {formData.skills_required.map((skill, index) => (
-                        <Badge key={index} variant="secondary" className="flex items-center gap-1">
+                        <Badge key={index} variant="secondary" className="flex items-center gap-1 bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-700 dark:text-red-300">
                           {skill}
                           <button
                             type="button"
                             onClick={() => removeSkill(skill)}
-                            className="ml-1 hover:text-red-600"
+                            className="ml-1 hover:text-red-800 dark:hover:text-red-200"
                           >
                             <X className="h-3 w-3" />
                           </button>
