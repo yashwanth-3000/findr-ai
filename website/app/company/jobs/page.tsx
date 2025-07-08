@@ -19,10 +19,32 @@ export default function ManageJobsPage() {
   const [jobs, setJobs] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('active')
+  const [applicantCounts, setApplicantCounts] = useState<{[key: string]: number}>({})
   
-  // Fetch jobs from the database
+  // Get applicant count for a job from Supabase
+  const getApplicantCount = async (jobTitle: string, companyName: string) => {
+    try {
+      const { count, error } = await supabase
+        .from('applicants')
+        .select('*', { count: 'exact', head: true })
+        .eq('job_name', jobTitle)
+        .eq('company_name', companyName)
+      
+      if (error) {
+        console.error('❌ [Jobs] Error fetching applicant count:', error)
+        return 0
+      }
+      
+      return count || 0
+    } catch (error) {
+      console.error('❌ [Jobs] Error in getApplicantCount:', error)
+      return 0
+    }
+  }
+  
+  // Fetch jobs from the database and their applicant counts
   useEffect(() => {
-    const fetchJobs = async () => {
+    const fetchJobsAndCounts = async () => {
       if (!user || !company) return
       
       try {
@@ -39,6 +61,18 @@ export default function ManageJobsPage() {
         
         console.log('✅ [Jobs] Found jobs:', data)
         setJobs(data || [])
+        
+        // Fetch applicant counts for each job
+        if (data && data.length > 0) {
+          const counts: {[key: string]: number} = {}
+          
+          for (const job of data) {
+            const count = await getApplicantCount(job.title, company.company_name)
+            counts[job.id] = count
+          }
+          
+          setApplicantCounts(counts)
+        }
       } catch (error) {
         console.error('❌ [Jobs] Error fetching jobs:', error)
       } finally {
@@ -46,17 +80,11 @@ export default function ManageJobsPage() {
       }
     }
     
-    fetchJobs()
+    fetchJobsAndCounts()
   }, [user, company, supabase])
   
   // Filter jobs by status
   const filteredJobs = jobs.filter(job => job.status === activeTab)
-  
-  // Get applicant count for a job (would be implemented with real data)
-  const getApplicantCount = (jobId: string) => {
-    // In a real app, this would fetch the actual count from the database
-    return Math.floor(Math.random() * 20) // Placeholder for demo
-  }
   
   // Format posted date
   const formatPostedDate = (date: string) => {
@@ -88,9 +116,7 @@ export default function ManageJobsPage() {
                  !company ? 'Loading company profile...' : 
                  'Loading jobs...'}
               </p>
-              <p className="text-xs text-muted-foreground">
-                Debug: User: {user ? '✅' : '❌'} | Company: {company ? '✅' : '❌'}
-              </p>
+
             </div>
           ) : jobs.length === 0 ? (
             <Card className="p-8 text-center">
@@ -124,7 +150,7 @@ export default function ManageJobsPage() {
                         title={job.title}
                         location={job.location}
                         posted={formatPostedDate(job.created_at)}
-                        applicants={getApplicantCount(job.id)}
+                        applicants={applicantCounts[job.id] || 0}
                         status="active"
                       />
                     ))}
@@ -168,7 +194,7 @@ export default function ManageJobsPage() {
                         title={job.title}
                         location={job.location}
                         posted={`Closed ${formatPostedDate(job.updated_at)}`}
-                        applicants={getApplicantCount(job.id)}
+                        applicants={applicantCounts[job.id] || 0}
                         status="closed"
                       />
                     ))}

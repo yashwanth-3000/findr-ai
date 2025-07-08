@@ -162,11 +162,6 @@ export default function CreateShareableLinkPage() {
             // Clear the sessionStorage as job is now saved
             sessionStorage.removeItem('pendingJobData')
             alert('🎉 Job posted and shareable link created successfully!')
-            
-            // Redirect to job management page after a short delay
-            setTimeout(() => {
-              window.location.href = '/company/jobs?created=success'
-            }, 2000)
           }
         } catch (error) {
           console.error('Error saving to Supabase:', error)

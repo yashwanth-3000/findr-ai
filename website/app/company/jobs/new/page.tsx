@@ -257,18 +257,8 @@ export default function NewJobPage() {
             <p className="text-muted-foreground dark:text-gray-400 mt-2">
               Step 1 of 2: Fill in job details, then create a shareable application link
             </p>
-            <div className="mt-3 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-              <p className="text-sm text-red-700 dark:text-red-300">
-                📋 <strong>New Workflow:</strong> After entering job details, you'll configure application requirements and create a shareable link to publish your job.
-              </p>
-            </div>
-            
-            {/* Quick Debug Info */}
-            <div className="mt-4 p-2 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded text-xs">
-              <span className="font-medium">Auth:</span> User: {user ? '✅' : '❌'} | Company: {company ? '✅' : '❌'} 
-              {user && <span className="ml-2">({user.email})</span>}
-              {company && <span className="ml-2">({company.company_name})</span>}
-            </div>
+
+
             </div>
           </div>
 

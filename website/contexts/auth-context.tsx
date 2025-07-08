@@ -67,11 +67,17 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const fetchCompanyProfile = async (userId: string) => {
     try {
       console.log('🔍 [fetchCompanyProfile] STEP 1: Starting fetch for user ID:', userId);
-      console.log('🔍 [fetchCompanyProfile] STEP 2: Calling Supabase query...');
       
-      let companyProfiles, error;
-      try {
-        // Query with reasonable timeout
+      // First, ensure we have a valid session for RLS policies
+      const { data: { session: currentSession } } = await supabase.auth.getSession();
+      if (!currentSession) {
+        console.log('❌ [fetchCompanyProfile] No valid session - skipping company fetch');
+        return null;
+      }
+      
+      console.log('🔍 [fetchCompanyProfile] STEP 2: Valid session found, calling Supabase query...');
+      
+      // Simplified query approach with better error handling and simple timeout
         const queryPromise = supabase
           .from('companies')
           .select('*')
@@ -79,43 +85,25 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           .order('created_at', { ascending: false })
           .limit(1);
         
-        const timeoutPromise = new Promise((_, reject) => {
-          setTimeout(() => reject(new Error('Query timeout after 15 seconds')), 15000);
-        });
-        
-        console.log('🔍 [fetchCompanyProfile] STEP 2.5: Waiting for query with 15s timeout...');
-        const result = await Promise.race([queryPromise, timeoutPromise]);
-        companyProfiles = (result as any).data;
-        error = (result as any).error;
-      } catch (timeoutError) {
-        console.error('🔍 [fetchCompanyProfile] Query timed out:', timeoutError);
-        // Don't return null immediately, try a fallback approach
-        console.log('🔍 [fetchCompanyProfile] Attempting fallback query...');
-        try {
-          const fallbackResult = await supabase
-            .from('companies')
-            .select('*')
-            .eq('user_id', userId)
-            .limit(1)
-            .maybeSingle();
-          
-          if (fallbackResult.error) {
-            console.error('❌ [fetchCompanyProfile] Fallback query failed:', fallbackResult.error);
-            return null;
-          }
-          
-          companyProfiles = fallbackResult.data ? [fallbackResult.data] : [];
-          error = null;
-        } catch (fallbackError) {
-          console.error('❌ [fetchCompanyProfile] Fallback query exception:', fallbackError);
-          return null;
-        }
-      }
+      // Set a reasonable timeout (30 seconds instead of 15)
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Database query timeout - please check your connection')), 30000)
+      );
+      
+      const result = await Promise.race([queryPromise, timeoutPromise]) as any;
+      const { data: companyProfiles, error } = result;
       
       console.log('🔍 [fetchCompanyProfile] STEP 3: Query completed. Data:', companyProfiles, 'Error:', error);
       
       if (error) {
         console.log('❌ [fetchCompanyProfile] Error details:', error.code, error.message, error);
+        
+        // Handle specific RLS policy errors
+        if (error.code === 'PGRST116' || error.message?.includes('policy')) {
+          console.log('🔒 [fetchCompanyProfile] RLS policy blocked query - user may not be authenticated properly');
+          return null;
+        }
+        
         console.error('Error fetching company profile:', error);
         return null;
       }
@@ -357,17 +345,24 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         setSession(session);
         setUser(session.user);
         
-        // Fetch company profile for the user
+        // Fetch company profile for the user with a small delay to ensure session is fully established
         if (session.user && !companyFetchRef.current) {
           console.log('🚀 [initializeAuth] About to fetch company profile for user:', session.user.id);
           companyFetchRef.current = true;
+          
+          // Add a small delay to ensure the session is fully established
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
+          try {
           const companyProfile = await fetchCompanyProfile(session.user.id);
           console.log('🚀 [initializeAuth] Company profile result:', companyProfile);
-          console.log('🚀 [initializeAuth] companyFetchRef.current:', companyFetchRef.current);
-          console.log('📊 [setState] Setting company state to:', companyProfile);
           setCompany(companyProfile);
           console.log('🚀 [initializeAuth] Company state updated');
+          } catch (err) {
+            console.error('🚀 [initializeAuth] Failed to fetch company profile:', err);
+          } finally {
           companyFetchRef.current = false;
+          }
         }
       } else {
         console.log('No existing session found');
@@ -399,17 +394,24 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             setUser(session.user);
             setError(null);
             
-            // Fetch company profile for newly signed in user
+            // Fetch company profile for newly signed in user with delay
             if (session.user && !companyFetchRef.current) {
               console.log('👤 [authListener] About to fetch company profile for user:', session.user.id);
               companyFetchRef.current = true;
+              
+              // Add a small delay to ensure the session is fully established
+              await new Promise(resolve => setTimeout(resolve, 1000));
+              
+              try {
               const companyProfile = await fetchCompanyProfile(session.user.id);
               console.log('👤 [authListener] Company profile result:', companyProfile);
-              console.log('👤 [authListener] companyFetchRef.current:', companyFetchRef.current);
-              console.log('📊 [setState] Setting company state to:', companyProfile);
               setCompany(companyProfile);
               console.log('👤 [authListener] Company state updated');
+              } catch (err) {
+                console.error('👤 [authListener] Failed to fetch company profile:', err);
+              } finally {
               companyFetchRef.current = false;
+              }
             }
           } else if (event === 'SIGNED_OUT') {
             console.log('User signed out, clearing state');
