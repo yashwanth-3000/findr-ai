@@ -1,0 +1,12 @@
+{
+  "version": 2,
+  "name": "findr-ai-lablab",
+  "buildCommand": "pnpm build",
+  "outputDirectory": ".next",
+  "installCommand": "pnpm install --no-frozen-lockfile",
+  "framework": "nextjs",
+  "rootDirectory": "website",
+  "github": {
+    "silent": true
+  }
+} 

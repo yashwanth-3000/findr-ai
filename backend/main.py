@@ -220,7 +220,8 @@ async def run_analysis_workflow(
         score_match = re.search(r'(\d+(?:\.\d+)?)%', job_matching_result)
         matching_score = float(score_match.group(1)) if score_match else 0
         
-        github_verification_triggered = matching_score > 65
+        # GitHub verification is now always triggered regardless of score
+        github_verification_triggered = True
         
         if github_verification_triggered:
             if job_id:
@@ -316,7 +317,7 @@ async def run_analysis_workflow(
                 },
                 "github_verification": {
                     "triggered": False,
-                    "reason": f"Matching score {matching_score}% below threshold of 65%"
+                    "reason": "Error during GitHub verification process"
                 }
             }
         
@@ -370,7 +371,7 @@ async def analyze_resume(
     This endpoint performs complete resume analysis including:
     - PDF text extraction
     - Resume-job matching with scoring
-    - GitHub profile analysis (if score > 65%)
+    - GitHub profile analysis (always performed)
     - Repository content analysis using Gitingest
     - Authenticity verification and credibility scoring
     """

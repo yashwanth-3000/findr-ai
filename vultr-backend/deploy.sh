@@ -16,7 +16,7 @@ NC='\033[0m' # No Color
 REGION="blr"                    # Bangalore
 PLAN="vc2-2c-4gb"              # 2 vCPU, 4GB RAM (upgraded for AI workloads)
 OS="2284"                      # Ubuntu 24.04 LTS
-LABEL="resume-analyzer-prod"
+LABEL="findr-ai"               # Changed from "resume-analyzer-prod" to "findr-ai"
 PROJECT_DIR="vultr-backend"
 SSH_KEY_ID="4b5eed74-8f4a-4318-b83c-3a426dcdc6ec"  # Vultr SSH key ID
 SSH_PRIVATE_KEY="$HOME/.ssh/vultr_key"              # Local SSH private key
@@ -116,14 +116,18 @@ sleep 30
 
 # Copy files to server
 echo -e "${BLUE}📁 Copying application files to server...${NC}"
-scp -i "$SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no -r . root@"$SERVER_IP":/opt/resume-analyzer
+scp -i "$SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no -r . root@"$SERVER_IP":/opt/findr-ai
 
 # Deploy the application
-echo -e "${BLUE}🐳 Setting up Resume Analyzer Application...${NC}"
+echo -e "${BLUE}🐳 Setting up Findr AI Application...${NC}"
 ssh -i "$SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no root@"$SERVER_IP" << 'EOF'
 # Update system
 echo "📦 Updating system packages..."
 apt-get update -y
+
+# Install essential tools including curl for GitIngest
+echo "🔧 Installing essential system tools..."
+apt-get install -y curl wget git build-essential
 
 # Install Docker if not present
 if ! command -v docker &> /dev/null; then
@@ -145,7 +149,7 @@ apt-get update -y
 apt-get install -y python3.11 python3.11-pip python3.11-venv python3.11-dev
 
 # Create virtual environment
-cd /opt/resume-analyzer
+cd /opt/findr-ai
 echo "🔧 Setting up Python environment..."
 python3.11 -m venv venv
 source venv/bin/activate
@@ -159,17 +163,17 @@ pip install -r requirements.txt
 
 # Create systemd service
 echo "⚙️ Creating systemd service..."
-cat > /etc/systemd/system/resume-analyzer.service << 'SERVICE_EOF'
+cat > /etc/systemd/system/findr-ai.service << 'SERVICE_EOF'
 [Unit]
-Description=Resume Analyzer API
+Description=Findr AI API
 After=network.target
 
 [Service]
 Type=exec
 User=root
-WorkingDirectory=/opt/resume-analyzer
-Environment=PATH=/opt/resume-analyzer/venv/bin
-ExecStart=/opt/resume-analyzer/venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000 --workers 2
+WorkingDirectory=/opt/findr-ai
+Environment=PATH=/opt/findr-ai/venv/bin
+ExecStart=/opt/findr-ai/venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000 --workers 2
 Restart=always
 RestartSec=3
 
@@ -179,14 +183,14 @@ SERVICE_EOF
 
 # Enable and start the service
 systemctl daemon-reload
-systemctl enable resume-analyzer
-systemctl start resume-analyzer
+systemctl enable findr-ai
+systemctl start findr-ai
 
 # Install and configure Nginx as reverse proxy
 echo "🌐 Setting up Nginx reverse proxy..."
 apt-get install -y nginx
 
-cat > /etc/nginx/sites-available/resume-analyzer << 'NGINX_EOF'
+cat > /etc/nginx/sites-available/findr-ai << 'NGINX_EOF'
 server {
     listen 80;
     server_name _;
@@ -207,9 +211,19 @@ server {
 NGINX_EOF
 
 # Enable the site
-ln -sf /etc/nginx/sites-available/resume-analyzer /etc/nginx/sites-enabled/
+ln -sf /etc/nginx/sites-available/findr-ai /etc/nginx/sites-enabled/
 rm -f /etc/nginx/sites-enabled/default
 nginx -t && systemctl restart nginx
+
+# Install Certbot for SSL certificates
+echo "🔒 Installing SSL certificates..."
+apt-get install -y snapd
+snap install core; snap refresh core
+snap install --classic certbot
+ln -sf /snap/bin/certbot /usr/bin/certbot
+
+# Note: SSL setup will be completed after getting domain name
+echo "📝 SSL setup ready - will configure after domain is pointed to server"
 
 # Set up firewall
 echo "🔒 Configuring firewall..."
@@ -218,7 +232,7 @@ ufw allow 22
 ufw allow 80
 ufw allow 443
 
-echo "✅ Resume Analyzer deployment completed!"
+echo "✅ Findr AI deployment completed!"
 EOF
 
 # Wait for application to start
@@ -251,7 +265,8 @@ fi
 echo ""
 echo -e "${GREEN}🎉 Deployment completed successfully!${NC}"
 echo "=============================================="
-echo -e "${YELLOW}📝 Access your Resume Analyzer API:${NC}"
+
+echo -e "${YELLOW}📝 Access your Findr AI API:${NC}"
 echo "   🌐 API: http://$SERVER_IP/"
 echo "   📚 Docs: http://$SERVER_IP/docs"
 echo "   🔍 ReDoc: http://$SERVER_IP/redoc"
@@ -263,14 +278,20 @@ echo "   IP Address: $SERVER_IP"
 echo "   SSH: ssh root@$SERVER_IP"
 echo ""
 echo -e "${YELLOW}🔧 Management Commands:${NC}"
-echo "   View logs: ssh root@$SERVER_IP 'journalctl -u resume-analyzer -f'"
-echo "   Restart service: ssh root@$SERVER_IP 'systemctl restart resume-analyzer'"
-echo "   Check status: ssh root@$SERVER_IP 'systemctl status resume-analyzer'"
+echo "   View logs: ssh root@$SERVER_IP 'journalctl -u findr-ai -f'"
+echo "   Restart service: ssh root@$SERVER_IP 'systemctl restart findr-ai'"
+echo "   Check status: ssh root@$SERVER_IP 'systemctl status findr-ai'"
 echo "   Delete instance: vultr-cli instance delete $INSTANCE_ID"
+echo ""
+echo -e "${YELLOW}🔒 HTTPS Setup (After pointing domain):${NC}"
+echo "   1. Point your domain to IP: $SERVER_IP"
+echo "   2. Update Nginx config: ssh root@$SERVER_IP 'nano /etc/nginx/sites-available/findr-ai'"
+echo "   3. Get SSL cert: ssh root@$SERVER_IP 'certbot --nginx -d yourdomain.com'"
+echo "   4. Test renewal: ssh root@$SERVER_IP 'certbot renew --dry-run'"
 echo ""
 echo -e "${RED}⚠️ Important: Configure API Keys${NC}"
 echo "   Edit .env file on server with valid API keys:"
-echo "   ssh root@$SERVER_IP 'nano /opt/resume-analyzer/.env'"
-echo "   Then restart: ssh root@$SERVER_IP 'systemctl restart resume-analyzer'"
+echo "   ssh root@$SERVER_IP 'nano /opt/findr-ai/.env'"
+echo "   Then restart: ssh root@$SERVER_IP 'systemctl restart findr-ai'"
 echo ""
 echo -e "${BLUE}Happy analyzing! 🚀${NC}" 

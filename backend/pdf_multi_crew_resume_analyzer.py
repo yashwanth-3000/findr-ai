@@ -12,7 +12,7 @@ WORKFLOW:
    - Job Matcher Agent: Matches resume against job description and provides score
    - GitHub Extractor Agent: Extracts GitHub URLs from resume
 
-2. Conditional Logic: If score > 65%
+2. GitHub Verification: Always performed regardless of score
    - Triggers Second Crew: GitHub Verification Crew
 
 3. Second Crew: GitHub Verification Crew  
@@ -1088,7 +1088,7 @@ def main():
     
     OPTIMIZED DUAL-TOOL APPROACH:
     - Phase 1: Resume Analysis Crew (PDF parsing, skill analysis, job matching)
-    - Phase 2: GitHub Verification Crew (if score > 65%)
+    - Phase 2: GitHub Verification Crew (always performed)
       * Firecrawl: GitHub profile discovery and repository list extraction
       * Project Matching: Smart filtering to analyze only resume-relevant repositories
       * Gitingest: Detailed content extraction from matched repositories only
@@ -1217,122 +1217,107 @@ def main():
     print(f"   • Verified Repositories: {len(verified_repos)}")
     
     # =================================================================
-    # CONDITIONAL LOGIC: PROCEED TO CREW 2 IF SCORE > 65%
+    # GITHUB VERIFICATION: ALWAYS PERFORMED REGARDLESS OF SCORE
     # =================================================================
-    print(f"\n🤔 Evaluating score threshold (65%)...")
+    print(f"\n🚀 GitHub Verification will proceed regardless of matching score...")
     
-    if matching_score > 65:
-        print(f"✅ Score {matching_score}% > 65% - Proceeding to GitHub Verification")
+    # GitHub verification is always triggered
+    print(f"✅ Score {matching_score}% - Proceeding to GitHub Verification")
+    
+    # =================================================================
+    # CREW 2: GITHUB VERIFICATION CREW - FOCUSED DUAL-TOOL APPROACH
+    # =================================================================
+    print("\n" + "="*60)
+    print("🔍 PHASE 2: GITHUB VERIFICATION CREW")
+    print("🌐 Firecrawl: Profile analysis (commits, contributions)")
+    print("📦 Gitingest: Specific repository analysis (user's best projects)")
+    print("="*60)
+    
+    if verified_repos:
+        # Step 1: Use Firecrawl to analyze GitHub profile for commit history and contributions
+        print(f"🌐 Analyzing GitHub profile with Firecrawl: {github_profile_url}")
+        profile_data = github_extractor.get_profile_activity_data(username)
         
-        # =================================================================
-        # CREW 2: GITHUB VERIFICATION CREW - FOCUSED DUAL-TOOL APPROACH
-        # =================================================================
-        print("\n" + "="*60)
-        print("🔍 PHASE 2: GITHUB VERIFICATION CREW")
-        print("🌐 Firecrawl: Profile analysis (commits, contributions)")
-        print("📦 Gitingest: Specific repository analysis (user's best projects)")
-        print("="*60)
+        # Step 2: Use Gitingest to analyze only the user's specified best repositories
+        print(f"\n📦 Analyzing {len(verified_repos)} user-specified repositories with Gitingest...")
+        repo_content_data = []
         
-        if verified_repos:
-            # Step 1: Use Firecrawl to analyze GitHub profile for commit history and contributions
-            print(f"🌐 Analyzing GitHub profile with Firecrawl: {github_profile_url}")
-            profile_data = github_extractor.get_profile_activity_data(username)
-            
-            # Step 2: Use Gitingest to analyze only the user's specified best repositories
-            print(f"\n📦 Analyzing {len(verified_repos)} user-specified repositories with Gitingest...")
-            repo_content_data = []
-            
-            for repo_url in verified_repos:
-                repo_name = repo_url.split('/')[-1]
-                print(f"   🔧 Gitingest analyzing: {repo_name}")
-                content_data = github_content_extractor.extract_repository_content(repo_url)
-                repo_content_data.append(content_data)
-            
-            combined_data = {
-                "profile_activity": profile_data,
-                "content": repo_content_data,
-                "repository_count": len(verified_repos),
-                "specified_repos": len(best_project_repos),
-                "verified_repos": len(verified_repos),
-                "invalid_repos": len(invalid_repos)
-            }
+        for repo_url in verified_repos:
+            repo_name = repo_url.split('/')[-1]
+            print(f"   🔧 Gitingest analyzing: {repo_name}")
+            content_data = github_content_extractor.extract_repository_content(repo_url)
+            repo_content_data.append(content_data)
+        
+        combined_data = {
+            "profile_activity": profile_data,
+            "content": repo_content_data,
+            "repository_count": len(verified_repos),
+            "specified_repos": len(best_project_repos),
+            "verified_repos": len(verified_repos),
+            "invalid_repos": len(invalid_repos)
+        }
 
-        else:
-            print(f"⚠️ No verified repositories to analyze")
-            # Still analyze the profile even without repositories
-            print(f"🌐 Analyzing GitHub profile with Firecrawl: {github_profile_url}")
-            profile_data = github_extractor.get_profile_activity_data(username)
-            
-            combined_data = {
-                "profile_activity": profile_data,
-                "content": [],
-                "repository_count": 0,
-                "specified_repos": len(best_project_repos),
-                "verified_repos": 0,
-                "invalid_repos": len(invalid_repos),
-                "reason": "No verified repositories provided"
-            }
-            
-        if combined_data["repository_count"] > 0 or combined_data.get("profile_activity"):
-            # Run GitHub verification crew if we have repositories or profile data
-            github_crew, github_tasks = create_github_verification_crew(combined_data, matching_score, resume_text)
-            project_matching_task, authenticity_analysis_task, credibility_scoring_task, verification_report_task = github_tasks
-            
-            # Execute the GitHub verification crew
-            print("🔄 Executing GitHub Verification Tasks...")
-            github_results = github_crew.kickoff()
-        else:
-            print("⚠️ No repositories or profile data - skipping GitHub verification crew execution")
-            # Create dummy task outputs for consistency
-            class DummyTask:
-                def __init__(self, message):
-                    self.output = type('obj', (object,), {'raw': message})
-            
-            project_matching_task = DummyTask("No repositories or profile data to analyze")
-            authenticity_analysis_task = DummyTask("No repositories or profile data to analyze") 
-            credibility_scoring_task = DummyTask("No repositories or profile data to analyze")
-            verification_report_task = DummyTask("No repositories or profile data to analyze")
-        
-        # Save comprehensive results
-        final_results = {
-            "resume_analysis": {
-                "matching_score": matching_score,
-                "pdf_parsing": pdf_parsing_task.output.raw,
-                "resume_analysis": resume_analysis_task.output.raw,
-                "job_matching": job_matching_task.output.raw,
-                "github_extraction": github_extraction_task.output.raw
-            },
-            "github_verification": {
-                "triggered": True,
-                "specified_repos": combined_data.get("specified_repos", 0),
-                "verified_repos": combined_data.get("verified_repos", 0),
-                "invalid_repos": combined_data.get("invalid_repos", 0),
-                "repositories_analyzed": combined_data["repository_count"],
-                "repository_content": combined_data["content"],
-                "profile_activity": combined_data.get("profile_activity", {}),
-                "project_matching": project_matching_task.output.raw,
-                "authenticity_analysis": authenticity_analysis_task.output.raw,
-                "credibility_scoring": credibility_scoring_task.output.raw,
-                "verification_report": verification_report_task.output.raw
-            }
-        }
-        
-        print("\n🎉 GITHUB VERIFICATION COMPLETED!")
     else:
-        print(f"❌ Score {matching_score}% ≤ 65% - Skipping GitHub Verification")
-        final_results = {
-            "resume_analysis": {
-                "matching_score": matching_score,
-                "pdf_parsing": pdf_parsing_task.output.raw,
-                "resume_analysis": resume_analysis_task.output.raw,
-                "job_matching": job_matching_task.output.raw,
-                "github_extraction": github_extraction_task.output.raw
-            },
-            "github_verification": {
-                "triggered": False,
-                "reason": f"Matching score {matching_score}% below threshold of 65%"
-            }
+        print(f"⚠️ No verified repositories to analyze")
+        # Still analyze the profile even without repositories
+        print(f"🌐 Analyzing GitHub profile with Firecrawl: {github_profile_url}")
+        profile_data = github_extractor.get_profile_activity_data(username)
+        
+        combined_data = {
+            "profile_activity": profile_data,
+            "content": [],
+            "repository_count": 0,
+            "specified_repos": len(best_project_repos),
+            "verified_repos": 0,
+            "invalid_repos": len(invalid_repos),
+            "reason": "No verified repositories provided"
         }
+        
+    if combined_data["repository_count"] > 0 or combined_data.get("profile_activity"):
+        # Run GitHub verification crew if we have repositories or profile data
+        github_crew, github_tasks = create_github_verification_crew(combined_data, matching_score, resume_text)
+        project_matching_task, authenticity_analysis_task, credibility_scoring_task, verification_report_task = github_tasks
+        
+        # Execute the GitHub verification crew
+        print("🔄 Executing GitHub Verification Tasks...")
+        github_results = github_crew.kickoff()
+    else:
+        print("⚠️ No repositories or profile data - skipping GitHub verification crew execution")
+        # Create dummy task outputs for consistency
+        class DummyTask:
+            def __init__(self, message):
+                self.output = type('obj', (object,), {'raw': message})
+        
+        project_matching_task = DummyTask("No repositories or profile data to analyze")
+        authenticity_analysis_task = DummyTask("No repositories or profile data to analyze") 
+        credibility_scoring_task = DummyTask("No repositories or profile data to analyze")
+        verification_report_task = DummyTask("No repositories or profile data to analyze")
+    
+    # Save comprehensive results
+    final_results = {
+        "resume_analysis": {
+            "matching_score": matching_score,
+            "pdf_parsing": pdf_parsing_task.output.raw,
+            "resume_analysis": resume_analysis_task.output.raw,
+            "job_matching": job_matching_task.output.raw,
+            "github_extraction": github_extraction_task.output.raw
+        },
+        "github_verification": {
+            "triggered": True,
+            "specified_repos": combined_data.get("specified_repos", 0),
+            "verified_repos": combined_data.get("verified_repos", 0),
+            "invalid_repos": combined_data.get("invalid_repos", 0),
+            "repositories_analyzed": combined_data["repository_count"],
+            "repository_content": combined_data["content"],
+            "profile_activity": combined_data.get("profile_activity", {}),
+            "project_matching": project_matching_task.output.raw,
+            "authenticity_analysis": authenticity_analysis_task.output.raw,
+            "credibility_scoring": credibility_scoring_task.output.raw,
+            "verification_report": verification_report_task.output.raw
+        }
+    }
+    
+    print("\n🎉 GITHUB VERIFICATION COMPLETED!")
     
     # =================================================================
     # SAVE RESULTS
